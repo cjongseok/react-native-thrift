@@ -17,7 +17,9 @@
  * under the License.
  */
 
-var Int64 = require('node-int64');
+var Buffer = require('buffer').Buffer;
+
+var Int64 = require('./int64');
 
 var Int64Util = module.exports = {};
 

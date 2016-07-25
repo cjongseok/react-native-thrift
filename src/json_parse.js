@@ -20,7 +20,7 @@
     prototype, push, r, t, text
 */
 
-var Int64 = require('node-int64');
+var Int64 = require('./int64');
 var Int64Util = require('./int64_util');
 
 var json_parse = module.exports = (function () {
