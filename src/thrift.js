@@ -49,7 +49,6 @@ exports.TException = TException;
 
 function TException(message) {
   Error.call(this);
-  Error.captureStackTrace(this, this.constructor);
   this.name = this.constructor.name;
   this.message = message;
 };
@@ -73,7 +72,6 @@ exports.TApplicationException = TApplicationException;
 
 function TApplicationException(type, message) {
   TException.call(this);
-  Error.captureStackTrace(this, this.constructor);
   this.type = type || TApplicationExceptionType.UNKNOWN;
   this.name = this.constructor.name;
   this.message = message;
@@ -149,7 +147,6 @@ exports.TProtocolException = TProtocolException;
 
 function TProtocolException(type, message) {
   Error.call(this);
-  Error.captureStackTrace(this, this.constructor);
   this.name = this.constructor.name;
   this.type = type;
   this.message = message;
