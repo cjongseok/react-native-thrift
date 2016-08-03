@@ -1,6 +1,6 @@
 {
   "name": "react-native-thrift",
-  "version": "0.1.6",
+  "version": "0.3.0",
   "description": "",
   "main": "./src/index.js",
   "repository": {
@@ -19,7 +19,6 @@
   "homepage": "https://github.com/vh/react-native-thrift#readme",
   "dependencies": {
     "buffer": "~4.7.1",
-    "events": "~1.1.1",
     "q": "~1.4.1"
   }
 }

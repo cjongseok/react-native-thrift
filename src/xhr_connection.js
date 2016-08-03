@@ -19,8 +19,6 @@
 
 var Buffer = require('buffer').Buffer;
 
-var util = require('util');
-var EventEmitter = require("events").EventEmitter;
 var thrift = require('./thrift');
 
 var TBufferedTransport = require('./buffered_transport');
@@ -52,6 +50,7 @@ function XHRConnection(host, port, options) {
   this.transport = options.transport || TBufferedTransport;
   this.protocol = options.protocol || TJSONProtocol;
   this.headers = options.headers || {};
+  this.timeout = options.timeout || 0;
 
   host = host || window.location.host;
   port = port || window.location.port;
@@ -73,12 +72,10 @@ function XHRConnection(host, port, options) {
   this.seqId2Service = {};
 };
 
-util.inherits(XHRConnection, EventEmitter);
-
 /**
-* Gets the browser specific XmlHttpRequest Object.
-* @returns {object} the browser XHR interface object
-*/
+ * Gets the browser specific XmlHttpRequest Object.
+ * @returns {object} the browser XHR interface object
+ */
 XHRConnection.prototype.getXmlHttpRequestObject = function() {
   try { return new XMLHttpRequest(); } catch (e1) { }
   try { return new ActiveXObject('Msxml2.XMLHTTP'); } catch (e2) { }
@@ -104,16 +101,48 @@ XHRConnection.prototype.flush = function() {
   }
 
   var xreq = this.getXmlHttpRequestObject();
+  xreq.seqid = this.seqid;
 
   if (xreq.overrideMimeType) {
     xreq.overrideMimeType('application/json');
   }
 
-  xreq.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      self.setRecvBuffer(this.responseText);
+  xreq.onload = function() {
+    if (this.status == 200) {
+      if (this.responseText) {
+        self.setRecvBuffer(this.responseText, this.seqid);
+      } else {
+        var cb = self.client._reqs[this.seqid];
+        delete self.client._reqs[this.seqid];
+        cb && cb(new thrift.TTransportException(
+          thrift.TTransportExceptionType.NOT_OPEN,
+          "Response buffer is empty, no request"));
+      }
+    } else {
+      var cb = self.client._reqs[this.seqid];
+      delete self.client._reqs[this.seqid];
+      cb && cb(new thrift.TTransportException(
+        thrift.TTransportExceptionType.UNKNOWN,
+        "HTTP Response code: " + this.status));
     }
   };
+
+  xreq.onerror = function() {
+    var cb = self.client._reqs[this.seqid];
+    delete self.client._reqs[this.seqid];
+    cb && cb(new thrift.TTransportException(
+      thrift.TTransportExceptionType.UNKNOWN,
+      this.responseText));
+  }
+
+  xreq.timeout = this.timeout;
+  xreq.ontimeout = function() {
+    var cb = self.client._reqs[this.seqid];
+    delete self.client._reqs[this.seqid];
+    cb && cb(new thrift.TTransportException(
+      thrift.TTransportExceptionType.TIMED_OUT,
+      "Request timeout"));
+  }
 
   xreq.open('POST', this.url, true);
 
@@ -128,7 +157,7 @@ XHRConnection.prototype.flush = function() {
  * Sets the buffer to provide the protocol when deserializing.
  * @param {string} buf - The buffer to supply the protocol.
  */
-XHRConnection.prototype.setRecvBuffer = function(buf) {
+XHRConnection.prototype.setRecvBuffer = function(buf, seqid) {
   this.recv_buf = buf;
   this.recv_buf_sz = this.recv_buf.length;
   this.wpos = this.recv_buf.length;
@@ -139,17 +168,17 @@ XHRConnection.prototype.setRecvBuffer = function(buf) {
   }
   var thing = new Buffer(data || buf);
 
-  this.transport.receiver(this.__decodeCallback.bind(this))(thing);
-
+  this.transport.receiver(this.__decodeCallback.bind(this), seqid)(thing);
 };
 
-XHRConnection.prototype.__decodeCallback = function(transport_with_data) {
+XHRConnection.prototype.__decodeCallback = function(transport_with_data, seqid) {
   var proto = new this.protocol(transport_with_data);
   try {
     while (true) {
       var header = proto.readMessageBegin();
       var dummy_seqid = header.rseqid * -1;
       var client = this.client;
+
       //The Multiplexed Protocol stores a hash of seqid to service names
       //  in seqId2Service. If the SeqId is found in the hash we need to
       //  lookup the appropriate client for this call.
@@ -168,20 +197,28 @@ XHRConnection.prototype.__decodeCallback = function(transport_with_data) {
         delete this.seqId2Service[header.rseqid];
       }
       /*jshint -W083 */
+      var clientCallback = client._reqs[header.rseqid];
+      delete client._reqs[header.rseqid];
       client._reqs[dummy_seqid] = function(err, success) {
         transport_with_data.commitPosition();
-        var clientCallback = client._reqs[header.rseqid];
-        delete client._reqs[header.rseqid];
         if (clientCallback) {
           clientCallback(err, success);
         }
       };
       /*jshint +W083 */
       if (client['recv_' + header.fname]) {
-        client['recv_' + header.fname](proto, header.mtype, dummy_seqid);
+        if (header.rseqid == seqid) {
+          client['recv_' + header.fname](proto, header.mtype, dummy_seqid);
+        } else {
+          delete client._reqs[dummy_seqid];
+          clientCallback && clientCallback(
+            new thrift.TApplicationException(
+              thrift.TApplicationExceptionType.BAD_SEQUENCE_ID,
+              "Out of sequence response"));
+        }
       } else {
         delete client._reqs[dummy_seqid];
-        this.emit("error",
+        clientCallback && clientCallback(
           new thrift.TApplicationException(
             thrift.TApplicationExceptionType.WRONG_METHOD_NAME,
             "Received a response to an unknown RPC function"));
@@ -253,8 +290,9 @@ XHRConnection.prototype.readAll = function() {
  * Sets the send buffer to buf.
  * @param {string} buf - The buffer to send.
  */
-XHRConnection.prototype.write = function(buf) {
+XHRConnection.prototype.write = function(buf, seqid) {
   this.send_buf = buf;
+  this.seqid = seqid;
   this.flush();
 };
 
