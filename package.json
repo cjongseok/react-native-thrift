@@ -1,7 +1,7 @@
 {
   "name": "react-native-thrift",
-  "version": "0.3.0",
-  "description": "",
+  "version": "0.5.0",
+  "description": "Thrift binding for React Native",
   "main": "./src/index.js",
   "repository": {
     "type": "git",
@@ -18,7 +18,7 @@
   },
   "homepage": "https://github.com/vh/react-native-thrift#readme",
   "dependencies": {
-    "buffer": "~4.7.1",
-    "q": "~1.4.1"
+    "bluebird": "^3.4.5",
+    "buffer": "~4.9.1"
   }
 }
