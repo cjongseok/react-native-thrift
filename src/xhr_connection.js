@@ -17,8 +17,6 @@
  * under the License.
  */
 
-var Buffer = require('buffer').Buffer;
-
 var thrift = require('./thrift');
 
 var TBufferedTransport = require('./buffered_transport');
@@ -73,18 +71,6 @@ function XHRConnection(host, port, options) {
 };
 
 /**
- * Gets the browser specific XmlHttpRequest Object.
- * @returns {object} the browser XHR interface object
- */
-XHRConnection.prototype.getXmlHttpRequestObject = function() {
-  try { return new XMLHttpRequest(); } catch (e1) { }
-  try { return new ActiveXObject('Msxml2.XMLHTTP'); } catch (e2) { }
-  try { return new ActiveXObject('Microsoft.XMLHTTP'); } catch (e3) { }
-
-  throw "Your browser doesn't support XHR.";
-};
-
-/**
  * Sends the current XRH request if the transport was created with a URL
  * and the async parameter is false. If the transport was not created with
  * a URL, or the async parameter is True and no callback is provided, or
@@ -100,17 +86,22 @@ XHRConnection.prototype.flush = function() {
     return this.send_buf;
   }
 
-  var xreq = this.getXmlHttpRequestObject();
+  var xreq = new XMLHttpRequest();
   xreq.seqid = this.seqid;
-
-  if (xreq.overrideMimeType) {
-    xreq.overrideMimeType('application/json');
-  }
 
   xreq.onload = function() {
     if (this.status == 200) {
-      if (this.responseText) {
-        self.setRecvBuffer(this.responseText, this.seqid);
+      if (this.response) {
+        var buf;
+        if (self.protocol != TJSONProtocol) {
+          buf = new Uint8Array(this.response.length);
+          for(i = 0; i < this.response.length; i++) {
+            buf[i] = this.response.charCodeAt(i);
+          }
+        } else {
+          buf = this.response;
+        }
+        self.setRecvBuffer(buf, this.seqid);
       } else {
         var cb = self.client._reqs[this.seqid];
         delete self.client._reqs[this.seqid];
@@ -150,7 +141,13 @@ XHRConnection.prototype.flush = function() {
     xreq.setRequestHeader(headerKey, self.headers[headerKey]);
   });
 
-  xreq.send(this.send_buf.toString());
+  if (this.protocol != TJSONProtocol) {
+    xreq.setRequestHeader('Content-Type', 'application/octet-stream');
+    xreq.responseType = 'arraybuffer';
+    xreq.send(this.send_buf.toString('base64'));
+  } else {
+    xreq.send(this.send_buf.toString());
+  }
 };
 
 /**
