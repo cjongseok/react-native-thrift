@@ -17,6 +17,8 @@
  * under the License.
  */
 
+var Buffer = require('buffer').Buffer;
+
 var thrift = require('./thrift');
 
 var TBufferedTransport = require('./buffered_transport');
