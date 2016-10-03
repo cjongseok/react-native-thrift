@@ -1,6 +1,6 @@
 {
   "name": "react-native-thrift",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "description": "Thrift binding for React Native",
   "main": "./src/index.js",
   "repository": {
