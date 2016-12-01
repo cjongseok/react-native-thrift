@@ -23,6 +23,12 @@ exports.XHRConnection = xhrConnection.XHRConnection;
 exports.createXHRConnection = xhrConnection.createXHRConnection;
 exports.createXHRClient = xhrConnection.createXHRClient;
 
+
+var mprocessor = require('./multiplexed_processor');
+var mprotocol = require('./multiplexed_protocol');
+exports.Multiplexer = mprotocol.Multiplexer;
+exports.MultiplexedProcessor = mprocessor.MultiplexedProcessor;
+
 exports.TBufferedTransport = require('./buffered_transport');
 
 exports.Protocol = exports.TJSONProtocol = require('./json_protocol');
