@@ -22,6 +22,7 @@ var Buffer = require('buffer').Buffer;
 var thrift = require('./thrift');
 
 var TBufferedTransport = require('./buffered_transport');
+var TBinaryProtocol = require('./binary_protocol');
 var TJSONProtocol = require('./json_protocol');
 var InputBufferUnderrunError = require('./input_buffer_underrun_error');
 
@@ -95,13 +96,15 @@ XHRConnection.prototype.flush = function() {
     if (this.status == 200) {
       if (this.response) {
         var buf;
-        if (self.protocol != TJSONProtocol) {
+        if (self.protocol == TBinaryProtocol) {
+          buf = this.response
+        } else if(self.protocol == TJSONProtocol) {
+          buf = this.response
+        } else {
           buf = new Uint8Array(this.response.length);
           for(i = 0; i < this.response.length; i++) {
             buf[i] = this.response.charCodeAt(i);
           }
-        } else {
-          buf = this.response;
         }
         self.setRecvBuffer(buf, this.seqid);
       } else {
@@ -163,6 +166,9 @@ XHRConnection.prototype.setRecvBuffer = function(buf, seqid) {
   this.rpos = 0;
 
   if (Object.prototype.toString.call(buf) == "[object ArrayBuffer]") {
+    var data = new Uint8Array(buf);
+  }
+  else if (Object.prototype.toString.call(buf) == "[object Uint8Array]") {
     var data = new Uint8Array(buf);
   }
   var thing = new Buffer(data || buf);
